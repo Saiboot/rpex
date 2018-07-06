@@ -47,7 +47,7 @@ CCharacter::CCharacter(CGameWorld *pWorld)
 : CEntity(pWorld, CGameWorld::ENTTYPE_CHARACTER)
 {
 	m_ProximityRadius = ms_PhysSize;
-	m_Health = 0;
+	m_Health = 5;
 	m_Armor = 0;
 }
 
@@ -289,9 +289,6 @@ void CCharacter::FireWeapon()
 	{
 		case WEAPON_HAMMER:
 		{
-			
-//			m_pPlayer->GameServer()->SendChatTarget(m_pPlayer->GetCID(), "[+]");
-
 			// reset objects Hit
 			m_NumObjectsHit = 0;
 			GameServer()->CreateSound(m_Pos, SOUND_HAMMER_FIRE);
@@ -507,26 +504,6 @@ void CCharacter::SetEmote(int Emote, int Tick)
 {
 	m_EmoteType = Emote;
 	m_EmoteStop = Tick;
-}
-
-void CCharacter::IncreaseExp()
-{
-	m_Exp++;
-	if (m_Exp >= m_ExpThreshold)
-	{
-		char aBuf[256];
-		str_format(aBuf, sizeof(aBuf), "[EXP: %d/%d]", m_Exp, m_ExpThreshold);
-		GameServer()->SendChatTarget(m_pPlayer->GetCID(), aBuf);
-
-		m_Exp = 0;
-		m_Lvl++;
-		m_SP++;
-		m_ExpThreshold++;
-
-		GameServer()->SendChatTarget(m_pPlayer->GetCID(), "Lvl up! You've gained a new stat point.");
-		str_format(aBuf, sizeof(aBuf), "Currently unspent points: %d", m_SP);
-		GameServer()->SendChatTarget(m_pPlayer->GetCID(), aBuf);
-	}
 }
 
 void CCharacter::OnPredictedInput(CNetObj_PlayerInput *pNewInput)
@@ -820,47 +797,54 @@ bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon)
 	{
 		Die(From, Weapon);
 
-		//m_pPlayer->m_pAccount->ExpUp(From);
+		if (From == m_pPlayer->GetCID())	// self harm, emo
+			return false;
 
-		
+		CAccount *Acc = GameServer()->m_apPlayers[From]->m_pAccount;
+		CCharacter *pChr = GameServer()->m_apPlayers[From]->GetCharacter();
 
-		/*
-		char message[50];
-		strcpy(message, "[EXP: ");
+		Acc->m_Exp++;
 
-		m_pPlayer->exp++;
+		char msg[64];
+		str_format(msg, sizeof(msg), "[EXP: %d/%d]", Acc->m_Exp, Acc->m_ExpThreshold);
+		m_pPlayer->GameServer()->SendChatTarget(From, msg);
 
-		char bufferEXP[5];
-		itoa(m_pPlayer->exp, bufferEXP, 10);
-		strcat(message, bufferEXP);
-
-		strcat(message, "/");
-
-		char bufferHOLD[5];
-		itoa(m_pPlayer->hold, bufferHOLD, 10);
-		strcat(message, bufferHOLD);
-		strcat(message, "]");
-
-		m_pPlayer->GameServer()->SendChatTarget(From, message);
-
-		if (m_pPlayer->exp >= m_pPlayer->hold) {
-			m_pPlayer->lvl++;
-			m_pPlayer->exp = 0;
-			m_pPlayer->hold *= 2;
-		}
-		*/
-
-		// set attacker's face to happy (taunt!)
-		if (From >= 0 && From != m_pPlayer->GetCID() && GameServer()->m_apPlayers[From])
+		if (Acc->m_Exp >= Acc->m_ExpThreshold)
 		{
-			CCharacter *pChr = GameServer()->m_apPlayers[From]->GetCharacter();
-			if (pChr)
+			Acc->m_Lvl++;
+			Acc->m_Exp = 0;
+			Acc->m_ExpThreshold++;
+			Acc->m_SP++;
+
+			m_pPlayer->GameServer()->SendChatTarget(From, "Level up!");
+
+			str_format(msg, sizeof(msg), "New statpoint available! [%d]", Acc->m_SP);
+			m_pPlayer->GameServer()->SendChatTarget(From, msg);
+
+			if (pChr)	// Lvl up visuals
 			{
 				pChr->m_EmoteType = EMOTE_HAPPY;
 				pChr->m_EmoteStop = Server()->Tick() + Server()->TickSpeed();
+
+				GameServer()->CreateSound(pChr->GetPlayer()->m_ViewPos, 9);
+				GameServer()->CreateDeath(pChr->GetPlayer()->m_ViewPos, NULL);
+			}
+
+			if(Acc->m_Lvl <= 5)
+				m_pPlayer->GameServer()->SendChatTarget(From, "/upgr  -for upgrade info.");
+		}
+		
+		/*
+		// set attacker's face to happy (taunt!)
+		if (From >= 0 && From != m_pPlayer->GetCID() && GameServer()->m_apPlayers[From])
+		{
+			if (pChr)
+			{
+				pChr->m_EmoteType = EMOTE_ANGRY;
+				pChr->m_EmoteStop = Server()->Tick() + Server()->TickSpeed();
 			}
 		}
-
+		*/
 		return false;
 	}
 
