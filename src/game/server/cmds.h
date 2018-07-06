@@ -18,7 +18,7 @@ void toLowc(char *str);
 namespace cmdlist {
 
 	bool IsAvailable(CPlayer *pPlayer, CGameContext *pGameServer);
-	void Issue_command(CNetMsg_Cl_Say *pMsg, CPlayer *pPlayer, CGameContext *pGameServer);
+	void Issue_command(const char *pMsg, CPlayer *pPlayer, CGameContext *pGameServer);
 
 }
 
