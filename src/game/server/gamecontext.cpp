@@ -585,10 +585,19 @@ void CGameContext::OnClientConnected(int ClientID)
 
 void CGameContext::OnClientDrop(int ClientID, const char *pReason)
 {
+	CPlayer *thisPlayer = m_apPlayers[ClientID];
+	
+	// Save player in database.
+	if (thisPlayer->m_pAccount)
+	{
+		CAccsys::Save(thisPlayer->m_pAccount);
+		delete thisPlayer->m_pAccount;
+	}
+	
 	AbortVoteKickOnDisconnect(ClientID);
-	m_apPlayers[ClientID]->OnDisconnect(pReason);
-	delete m_apPlayers[ClientID];
-	m_apPlayers[ClientID] = 0;
+	thisPlayer->OnDisconnect(pReason);
+	delete thisPlayer;
+	thisPlayer = 0;
 
 	(void)m_pController->CheckTeamBalance();
 	m_VoteUpdate = true;
@@ -664,7 +673,7 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 
 			/* CHAT COMMAND ENTRIES */
 			if (!strncmp(pMsg->m_pMessage, "/", 1))
-				cmdlist::Issue_command(pMsg, pPlayer, this);
+				cmdlist::Issue_command(pMsg->m_pMessage, pPlayer, this);
 			else
 				SendChat(ClientID, Team, pMsg->m_pMessage);
 
