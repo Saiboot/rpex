@@ -50,13 +50,13 @@ void CAccsys::New(const char *name, const char *pw, const CPlayer *pl)
 	}
 
 
-	if (mkdir("accs"))
+	if (mkdir("Accounts"))
 		dbg_msg("accsys", "account folder created");
 
 	char File[64];
-	str_format(File, sizeof(File), "accounts/%s.3FFAcc", name);
+	str_format(File, sizeof(File), "Accounts/%s.%s", name, ACC_FILE_FORMAT);
 
-	if (DoesExist(File));
+	if (DoesExist(File))
 	{
 		m_pGameServer->SendChatTarget(ClientID, "The Account already exists!");
 		return;
@@ -68,19 +68,26 @@ void CAccsys::New(const char *name, const char *pw, const CPlayer *pl)
 	fprintf(Acc, "%s\n", name);
 	fprintf(Acc, "%s\n", pw);
 
-	fprintf(Acc, "Lvl = %d\n", 1);	// Level
-	fprintf(Acc, "Exp = %d\n", 0);	// Experience
-	fprintf(Acc, "SP = %d\n", 1);	// Stat points
-	fprintf(Acc, "ET = %d\n", 1);	// Experience Threshold
+	fprintf(Acc, "%d\n", 1);	// Level
+	fprintf(Acc, "%d\n", 0);	// Experience
+	fprintf(Acc, "%d\n", 1);	// Stat points
+	fprintf(Acc, "%d\n", 1);	// Experience Threshold
 
 	for (size_t i = 0; i < UPGRADES; i++)
-		fprintf(Acc, "%s = 0\n", UpgradeTypes[i]);
+		fprintf(Acc, "%d\n", 0);
 
 	fclose(Acc);
 
 	m_pGameServer->SendChatTarget(ClientID, "Your account has been created!");
 	m_pGameServer->SendChatTarget(ClientID, "You may now login, syntax:");
 	m_pGameServer->SendChatTarget(ClientID, "/login <username> <password>");
+}
+
+int CAccsys::GetNextAccInfoInt(FILE *pFile)
+{
+	int INT;
+	fscanf(pFile, "%d", &INT);
+	return INT;
 }
 
 CAccount *CAccsys::Load(const char *name, const char *pw, const CPlayer *pl)
@@ -94,7 +101,7 @@ CAccount *CAccsys::Load(const char *name, const char *pw, const CPlayer *pl)
 		return 0;
 	
 	char File[64];
-	str_format(File, sizeof(File), "accounts/%s.3FFAcc", name);
+	str_format(File, sizeof(File), "Accounts/%s.%s", name, ACC_FILE_FORMAT);
 
 	if (!DoesExist(File))
 	{
@@ -102,7 +109,7 @@ CAccount *CAccsys::Load(const char *name, const char *pw, const CPlayer *pl)
 		return 0;
 	}
 
-	dbg_msg("accsys", "account is not in use");
+	dbg_msg("accsys", File);
 
 	FILE *Acc = fopen(File, "r");
 
@@ -113,57 +120,58 @@ CAccount *CAccsys::Load(const char *name, const char *pw, const CPlayer *pl)
 		dbg_msg("accsys", "account \"%s\" is outdated!", name);
 		m_pGameServer->SendChatTarget(ClientID, "Your account is outdated, error: E0V3R510N");
 		m_pGameServer->SendChatTarget(ClientID, "Please contact an Admin!");
-		m_pGameServer->SendChatTarget(ClientID, "Admin: Åmol");
+		m_pGameServer->SendChatTarget(ClientID, "Admin: Amol");
 		fclose(Acc);
 		return 0;
 	}
 
-	char len_uLogin[USERNAME_MAX_LEN];
-	fgets(len_uLogin, USERNAME_MAX_LEN, Acc);
-	if (strncmp(len_uLogin, name, len_name))
+	char usLogin[USERNAME_MAX_LEN];
+	fgets(usLogin, USERNAME_MAX_LEN, Acc);
+	if (strncmp(usLogin, name, len_name))
 	{
 		dbg_msg("accsys", "account \"%s\" has been corrupted!", name);
 		m_pGameServer->SendChatTarget(ClientID, "Oops! Your account has been corrupted!, error: E0C088U97");
 		m_pGameServer->SendChatTarget(ClientID, "Please contact an Admin!");
-		m_pGameServer->SendChatTarget(ClientID, "Admin: Åmol");
+		m_pGameServer->SendChatTarget(ClientID, "Admin: Amol");
 		fclose(Acc);
 		return 0;
 	}
 
-	char len_pLogin[PASSWORD_MAX_LEN];
-	fgets(len_pLogin, USERNAME_MAX_LEN, Acc);
-	if (strncmp(len_uLogin, name, len_pw))
+	char pwLogin[PASSWORD_MAX_LEN];
+	fgets(pwLogin, PASSWORD_MAX_LEN, Acc);
+	if (strncmp(pwLogin, pw, len_pw))
 	{
 		m_pGameServer->SendChatTarget(ClientID, "You entered the wrong password!");
 		fclose(Acc);
 		return 0;
 	}
 
-	CAccount *Account = new CAccount();
+	CAccount *pAccount = new CAccount();
 
-	strncpy(Account->m_Username, name, USERNAME_MAX_LEN - 1);
-	Account->m_Username[USERNAME_MAX_LEN - 1] = '\0';
+	strncpy(pAccount->m_Username, name, USERNAME_MAX_LEN - 1);
+	pAccount->m_Username[USERNAME_MAX_LEN - 1] = '\0';
 
-	strncpy(Account->m_Password, pw, PASSWORD_MAX_LEN - 1);
-	Account->m_Password[PASSWORD_MAX_LEN - 1] = '\0';
+	strncpy(pAccount->m_Password, pw, PASSWORD_MAX_LEN - 1);
+	pAccount->m_Password[PASSWORD_MAX_LEN - 1] = '\0';
 
-	int stats[UPGRADES];
-	int stat_val;
+	pAccount->m_Lvl = GetNextAccInfoInt(Acc);
+	pAccount->m_Exp = GetNextAccInfoInt(Acc);
+	pAccount->m_SP = GetNextAccInfoInt(Acc);
+	pAccount->m_ExpThreshold = GetNextAccInfoInt(Acc);
 
-	for (size_t i = 0; fscanf(Acc, "%s = %d\n", UpgradeTypes[i], &stat_val) == 2; i++) {
-		Account->m_Stats[i] = stat_val;
-	}
+	for (size_t i = 0; i < UPGRADES; i++)
+		pAccount->m_Stats[i] = GetNextAccInfoInt(Acc);
 
 	fclose(Acc);
 
 	m_pGameServer->SendChatTarget(ClientID, "You've logged in successfully!");
-	return Account;
+	return pAccount;
 }
 
 void CAccsys::Save(const CAccount *account)
 {
 	char File[64];
-	str_format(File, sizeof(File), "accounts/%s.3FFAcc", account->m_Username);
+	str_format(File, sizeof(File), "Accounts/%s.%s", account->m_Username, ACC_FILE_FORMAT);
 
 	FILE *Acc = fopen(File, "w");
 	if (!Acc)
@@ -173,8 +181,13 @@ void CAccsys::Save(const CAccount *account)
 	fprintf(Acc, "%s\n", account->m_Username);
 	fprintf(Acc, "%s\n", account->m_Password);
 
+	fprintf(Acc, "%d\n", account->m_Lvl);
+	fprintf(Acc, "%d\n", account->m_Exp);
+	fprintf(Acc, "%d\n", account->m_ExpThreshold);
+	fprintf(Acc, "%d\n", account->m_SP);
+
 	for (size_t i = 0; i < UPGRADES; i++)
-		fprintf(Acc, "%s = %d\n", UpgradeTypes[i], account->m_Stats[i]);
+		fprintf(Acc, "%d\n", account->m_Stats[i]);
 
 	fclose(Acc);
 }
@@ -192,12 +205,13 @@ bool CAccsys::IsLoggedIn(const char *name)
 	return false;
 }
 
-bool CAccsys::DoesExist(const char *name)
+bool CAccsys::DoesExist(const char *filePath)
 {
-	FILE *Acc = fopen(name, "r");
-	if (!Acc)
-		return false;
-
-	fclose(Acc);
-	return true;
+	FILE *pFile;
+	if (pFile = fopen(filePath, "r"))
+	{
+		fclose(pFile);
+		return true;
+	}
+	return false;
 }
