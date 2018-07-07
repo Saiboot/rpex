@@ -586,26 +586,28 @@ void CGameContext::OnClientConnected(int ClientID)
 void CGameContext::OnClientDrop(int ClientID, const char *pReason)
 {
 	CPlayer *thisPlayer = m_apPlayers[ClientID];
-	
+	if (!thisPlayer)
+		return;
+
 	// Save player in database.
 	if (thisPlayer->m_pAccount)
 	{
 		CAccsys::Save(thisPlayer->m_pAccount);
 		delete thisPlayer->m_pAccount;
 	}
-	
+
 	AbortVoteKickOnDisconnect(ClientID);
 	thisPlayer->OnDisconnect(pReason);
 	delete thisPlayer;
-	thisPlayer = 0;
+	m_apPlayers[ClientID] = 0;
 
 	(void)m_pController->CheckTeamBalance();
 	m_VoteUpdate = true;
 
 	// update spectator modes
-	for(int i = 0; i < MAX_CLIENTS; ++i)
+	for (int i = 0; i < MAX_CLIENTS; ++i)
 	{
-		if(m_apPlayers[i] && m_apPlayers[i]->m_SpectatorID == ClientID)
+		if (m_apPlayers[i] && m_apPlayers[i]->m_SpectatorID == ClientID)
 			m_apPlayers[i]->m_SpectatorID = SPEC_FREEVIEW;
 	}
 }
